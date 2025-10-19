@@ -16,6 +16,12 @@ load(
     extra_include_paths=[str(CURRENT_DIR)],
     is_python_module=False,
     verbose=True,
+    extra_cuda_cflags=[
+        "-O3",
+        "--offload-arch=gfx942",
+        "-save-temps",
+        "-g",
+    ]
 )
 ops = torch.ops.hip_matmul
 

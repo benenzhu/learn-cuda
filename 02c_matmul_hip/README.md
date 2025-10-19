@@ -9,6 +9,7 @@ Resources:
 
 M=N=K=4096, BF16
 
+ROCM6.3
 Kernel name                 | TFLOPS 
 ----------------------------|--------
 PyTorch (2.8.0+rocm6.4)     | 548.09
@@ -17,6 +18,17 @@ v1b - pad smem              | 244.72
 v2 - smem swizzling         | 369.57
 v3a - double buffering      | 421.10
 v3b - 16-byte load for smem | 454.12
+
+ROCM7.0
+Kernel name                 | TFLOPS 
+----------------------------|--------
+PyTorch (2.8.0+rocm6.4)     | 548.28
+v1a                         | 122.40
+v1b - pad smem              | 250.40
+v2 - smem swizzling         | 377.59
+v3a - double buffering      | 140.37 ...... (seems like register spill?)
+v3b - 16-byte load for smem | 142.19 ...... (seems like register spill too?)
+
 
 TODO:
 - Swap A and B in `mfma` to use `bf16x4` store for C
