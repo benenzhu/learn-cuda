@@ -26,8 +26,8 @@ PyTorch (2.8.0+rocm6.4)     | 548.28
 v1a                         | 122.40
 v1b - pad smem              | 250.40
 v2 - smem swizzling         | 377.59
-v3a - double buffering      | 140.37 ...... (seems like register spill?)
-v3b - 16-byte load for smem | 142.19 ...... (seems like register spill too?)
+v3a - double buffering      | 140.37 
+v3b - 16-byte load for smem | 142.19 
 
 
 TODO:
