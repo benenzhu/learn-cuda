@@ -12,7 +12,7 @@ from triton.testing import do_bench
 CURRENT_DIR = Path(__file__).parent
 load(
     "hip_matmul",
-    [str(x) for x in CURRENT_DIR.glob("*.cu")],
+    [str(x) for x in CURRENT_DIR.glob("*.hip")] + ["matmul.cpp",],
     extra_include_paths=[str(CURRENT_DIR)],
     is_python_module=False,
     verbose=True,

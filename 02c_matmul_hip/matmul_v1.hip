@@ -1,3 +1,4 @@
+#include <hip/hip_runtime.h>
 #include "common.h"
 #include <hip/hip_bf16.h>
 
@@ -139,12 +140,12 @@ void matmul_v1_kernel(
 }
 
 void matmul_v1a(
-  const __hip_bfloat16 *A,
-  const __hip_bfloat16 *B,
-        __hip_bfloat16 *C,
-  int M, int N, int K,
-  hipStream_t stream
+  const float *A,
+  const float *B,
+        float *C,
+  int M, int N, int K
 ) {
+  
   constexpr int BLOCK_M = 128;
   constexpr int BLOCK_N = 128;
   constexpr int BLOCK_K = 64;
@@ -161,15 +162,18 @@ void matmul_v1a(
   const int smem_size = (BLOCK_M + BLOCK_N) * BLOCK_K * sizeof(__hip_bfloat16);
 
   matmul_v1_kernel<BLOCK_M, BLOCK_N, BLOCK_K, SMEM_STRIDE, NUM_WARP_M, NUM_WARP_N>
-    <<<grid_size, tb_size, smem_size, stream>>>(A, B, C, M, N, K);
+    <<<grid_size, tb_size, smem_size>>>(
+      reinterpret_cast<const __hip_bfloat16 *>(A), 
+      reinterpret_cast<const __hip_bfloat16 *>(B), 
+      reinterpret_cast<__hip_bfloat16 *>(C), 
+      M, N, K);
 }
 
 void matmul_v1b(
-  const __hip_bfloat16 *A,
-  const __hip_bfloat16 *B,
-        __hip_bfloat16 *C,
-  int M, int N, int K,
-  hipStream_t stream
+  const float *A,
+  const float *B,
+        float *C,
+  int M, int N, int K
 ) {
   constexpr int BLOCK_M = 128;
   constexpr int BLOCK_N = 128;
@@ -187,5 +191,9 @@ void matmul_v1b(
   const int smem_size = (BLOCK_M + BLOCK_N) * SMEM_STRIDE * sizeof(__hip_bfloat16);
 
   matmul_v1_kernel<BLOCK_M, BLOCK_N, BLOCK_K, SMEM_STRIDE, NUM_WARP_M, NUM_WARP_N>
-    <<<grid_size, tb_size, smem_size, stream>>>(A, B, C, M, N, K);
+    <<<grid_size, tb_size, smem_size>>>(
+      reinterpret_cast<const __hip_bfloat16 *>(A), 
+      reinterpret_cast<const __hip_bfloat16 *>(B), 
+      reinterpret_cast<__hip_bfloat16 *>(C), 
+      M, N, K);
 }

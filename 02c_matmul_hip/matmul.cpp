@@ -2,10 +2,9 @@
 
 #include <torch/library.h>
 #include <ATen/ATen.h>
-#include <c10/cuda/CUDAStream.h>
-#include <hip/hip_bf16.h>
 
-using MatmulFunc = void(const __hip_bfloat16 *, const __hip_bfloat16 *, __hip_bfloat16 *, int, int, int, hipStream_t);
+// float for mock for cpp
+using MatmulFunc = void(const float *, const float *, float *, int, int, int);
 
 MatmulFunc matmul_v1a;
 MatmulFunc matmul_v1b;
@@ -26,12 +25,11 @@ at::Tensor matmul(const at::Tensor& A, const at::Tensor& B) {
   at::Tensor C = at::empty({M, N}, A.options());
   // at::Tensor C = at::zeros({M, N}, A.options());  // for correctness check
 
-  auto A_gmem = reinterpret_cast<const __hip_bfloat16 *>(A.data_ptr());
-  auto B_gmem = reinterpret_cast<const __hip_bfloat16 *>(B.data_ptr());
-  auto C_gmem = reinterpret_cast<__hip_bfloat16 *>(C.data_ptr());
-  hipStream_t stream = at::cuda::getCurrentCUDAStream();
+  auto A_gmem = reinterpret_cast<const float *>(A.data_ptr());
+  auto B_gmem = reinterpret_cast<const float *>(B.data_ptr());
+  auto C_gmem = reinterpret_cast<float *>(C.data_ptr());
 
-  matmul_raw(A_gmem, B_gmem, C_gmem, M, N, K, stream);
+  matmul_raw(A_gmem, B_gmem, C_gmem, M, N, K);
 
   return C;
 }
