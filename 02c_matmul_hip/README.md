@@ -9,7 +9,7 @@ Resources:
 
 M=N=K=4096, BF16
 
-ROCM6.3
+ROCm 6.3
 Kernel name                 | TFLOPS 
 ----------------------------|--------
 PyTorch (2.8.0+rocm6.4)     | 548.09
@@ -19,7 +19,7 @@ v2 - smem swizzling         | 369.57
 v3a - double buffering      | 421.10
 v3b - 16-byte load for smem | 454.12
 
-ROCM7.0
+ROCm 7.0
 Kernel name                 | TFLOPS 
 ----------------------------|--------
 PyTorch (2.8.0+rocm6.4)     | 548.28
