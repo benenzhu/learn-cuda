@@ -14,7 +14,25 @@ Resources:
 
 ![1760964256545](image/README/1760964256545.png)
 
-M=N=K=4096, BF16
+
+### M=2048, N=2432, K=4096, BF16
+
+- this shape have 304 blocks of gemm, good to ignore the occupancy.
+- so we can v2 don't have much benefit of v1b. that's cause in 4096 shapes, it can achieve 2 occupancy, but in 2048 shapes, we only have 1 blocks now... and pad smem is enough now, as we are now in a persistent mem setting to get most of the flops.
+
+
+| Kernel name                 | TFLOPS |
+| --------------------------- | ------ |
+| PyTorch (2.8.0+rocm6.4)     | 497.38 |
+| v1a                         | 119.04 |
+| v1b - pad smem              | 262.25 |
+| v2 - smem swizzling         | 258.87 |
+| v3a - double buffering      | 142.66 |
+| v3b - 16-byte load for smem | 151.76 |
+
+
+
+### M=N=K=4096, BF16
 
 ROCm 6.3
 

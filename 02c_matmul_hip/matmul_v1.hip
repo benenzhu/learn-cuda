@@ -58,7 +58,7 @@ void matmul_v1_kernel(
   __hip_bfloat16 *A_smem = smem;
   __hip_bfloat16 *B_smem = A_smem + BLOCK_M /*128*/ * SMEM_STRIDE /*64*/;
 
-  // pre-compute offset for smem->rmem
+  // pre-compute offset for smem->rmem  // did this add some registers for cpp?
   __hip_bfloat16 *A_smem_thread, *B_smem_thread;
   {
     const int row = (warp_id_m /*[0,2)*/ * WARP_M /*256*/) + (lane_id /*[0,64)*/ % 16 /*16*/);

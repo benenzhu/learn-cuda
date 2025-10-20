@@ -27,7 +27,7 @@ ops = torch.ops.hip_matmul
 
 
 def main(args):
-    M, N, K = 4096, 4096, 4096
+    M, N, K = 2048, 2432, 4096
     dtype = torch.bfloat16
 
     A = torch.randn(M, K, dtype=dtype).cuda()
