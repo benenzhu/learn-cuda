@@ -52,8 +52,6 @@ constexpr int D_size = M * LDD;
 
 __global__ void sgemm_16x16x16(const float16_t* A, const float16_t* B, float* D)
 {
-
-#if __gfx90a__ || __gfx908__
   // This kernel computes a 16x16x16 matrix multiplication using a single wavefront.
   using float16x4 = __attribute__((__vector_size__(4 * sizeof(float16_t)))) float16_t;
   using floatx4 = __attribute__((__vector_size__(4 * sizeof(float)))) float;
@@ -127,7 +125,6 @@ __global__ void sgemm_16x16x16(const float16_t* A, const float16_t* B, float* D)
 
     D[d_idx] = d[i];
   }
-#endif
 }
 
 
