@@ -27,39 +27,42 @@ ops = torch.ops.hip_matmul
 
 
 def main(args):
-    M, N, K = 2048, 2432, 4096
-    dtype = torch.bfloat16
+    # TODO:  try larger block size?  M_256, N_256 K_?
+    # 256 * 256 * 64 here.
+    for K in [4096, 4096*2, 4096*4]:
+        M, N = 2048, 2432
+        dtype = torch.bfloat16
 
-    A = torch.randn(M, K, dtype=dtype).cuda()
-    B = torch.randn(N, K, dtype=dtype).cuda().T
+        A = torch.randn(M, K, dtype=dtype).cuda()
+        B = torch.randn(N, K, dtype=dtype).cuda().T
 
-    if args.profile is not None:
-        if args.profile == "pt":
-            f = torch.mm
-        else:
-            f = getattr(ops, f"matmul_{args.profile}")
+        if args.profile is not None:
+            if args.profile == "pt":
+                f = torch.mm
+            else:
+                f = getattr(ops, f"matmul_{args.profile}")
 
-        f(A, B)
-        return
+            f(A, B)
+            return
 
-    ref = torch.mm(A, B)
+        ref = torch.mm(A, B)
 
-    def bench(name, f):
-        out = f(A, B)
-        # torch.testing.assert_close(out, ref)
-        diff = (out - ref).abs().mean().item()
+        def bench(name, f):
+            out = f(A, B)
+            # torch.testing.assert_close(out, ref)
+            diff = (out - ref).abs().mean().item()
 
-        time.sleep(0.5)
-        latency_ms = do_bench(lambda: f(A, B), warmup=100, rep=500)
-        tflops = 2 * M * N * K / (latency_ms * 1e-3) * 1e-12
-        print(f"{name}: {tflops:.2f} TFLOPS, {diff}")
+            time.sleep(0.5)
+            latency_ms = do_bench(lambda: f(A, B), warmup=100, rep=500)
+            tflops = 2 * M * N * K / (latency_ms * 1e-3) * 1e-12
+            print(f"{name}: {tflops:.2f} TFLOPS, {diff}")
 
-    bench("PyTorch", torch.mm)
-    bench("v1a", ops.matmul_v1a)
-    bench("v1b", ops.matmul_v1b)
-    bench("v2", ops.matmul_v2)
-    bench("v3a", ops.matmul_v3a)
-    bench("v3b", ops.matmul_v3b)
+        bench("PyTorch", torch.mm)
+        bench("v1a", ops.matmul_v1a)
+        bench("v1b", ops.matmul_v1b)
+        bench("v2", ops.matmul_v2)
+        bench("v3a", ops.matmul_v3a)
+        bench("v3b", ops.matmul_v3b)
 
 
 if __name__ == "__main__":
