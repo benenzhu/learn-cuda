@@ -28,40 +28,41 @@ void matmul_v1_kernel(
         __hip_bfloat16 *C_gmem,
   int M, int N, int K
 ) {
-  constexpr int WARP_M = BLOCK_M / NUM_WARP_M;
-  constexpr int WARP_N = BLOCK_N / NUM_WARP_N;
-  constexpr int TB_SIZE = NUM_WARP_M * NUM_WARP_N * WARP_SIZE;
+  constexpr int WARP_M /*256*/ = BLOCK_M /*128*/ / NUM_WARP_M /*2*/;
+  constexpr int WARP_N /*256*/ = BLOCK_N /*128*/ / NUM_WARP_N /*2*/;
+  constexpr int TB_SIZE /*256*/ = NUM_WARP_M /*2*/ * NUM_WARP_N /*2*/ * WARP_SIZE /*64*/;
 
   const int tid = threadIdx.x;
-  const int warp_id = tid / WARP_SIZE;
-  const int lane_id = tid % WARP_SIZE;
+  const int warp_id /*[0,4)*/  = tid /*[0,256)*/ / WARP_SIZE /*64*/;
+  const int lane_id /*[0,64)*/ = tid /*[0,256)*/ % WARP_SIZE /*64*/;
 
-  const int warp_id_m = warp_id / NUM_WARP_N;
-  const int warp_id_n = warp_id % NUM_WARP_N;
+  const int warp_id_m /*[0,2)*/ = warp_id / NUM_WARP_N /*2*/;
+  const int warp_id_n /*[0,2)*/ = warp_id % NUM_WARP_N /*2*/;
 
-  const int bid = blockIdx.x;
-  const int grid_m = cdiv(M, BLOCK_M);
-  const int grid_n = cdiv(N, BLOCK_N);
+  const int bid /*[0,1024)*/ = blockIdx.x;
+  const int grid_m /*32*/ = cdiv(M /*4096*/, BLOCK_M /*128*/);
+  const int grid_n /*32*/ = cdiv(N /*4096*/, BLOCK_N /*128*/);
 
-  int bid_m = bid / grid_n;
-  int bid_n = bid % grid_n;
+  int bid_m /*[0,32)*/ = bid /*[0,1024)*/ / grid_n /*32*/;
+  int bid_n /*[0,32)*/= bid % grid_n /*32*/;
 
-  const int offset_m = bid_m * BLOCK_M;
-  const int offset_n = bid_n * BLOCK_N;
-  A_gmem += offset_m * K;
-  B_gmem += offset_n * K;
-  C_gmem += (offset_m + warp_id_m * WARP_M) * N + (offset_n + warp_id_n * WARP_N);
+  const int offset_m /*[0,1024)*/ = bid_m * BLOCK_M /*128*/;
+  const int offset_n /*[0,1024)*/ = bid_n * BLOCK_N /*128*/;
+  A_gmem += offset_m * K /*4096*/;
+  B_gmem += offset_n * K /*4096*/;
+  // To the position to calculate.
+  C_gmem += (offset_m + warp_id_m * WARP_M /*256*/) * N /*4096*/ + (offset_n + warp_id_n /*[0,2)*/ * WARP_N /*256*/);
 
   // shared memory
   extern __shared__ __hip_bfloat16 smem[];
   __hip_bfloat16 *A_smem = smem;
-  __hip_bfloat16 *B_smem = A_smem + BLOCK_M * SMEM_STRIDE;
+  __hip_bfloat16 *B_smem = A_smem + BLOCK_M /*128*/ * SMEM_STRIDE /*64*/;
 
   // pre-compute offset for smem->rmem
   __hip_bfloat16 *A_smem_thread, *B_smem_thread;
   {
-    const int row = (warp_id_m * WARP_M) + (lane_id % 16);
-    const int col = (lane_id / 16) * 4;
+    const int row = (warp_id_m /*[0,2)*/ * WARP_M /*256*/) + (lane_id /*[0,64)*/ % 16 /*16*/);
+    const int col = (lane_id /*[0,64)*/ / 16 /*16*/) * 4 /*4*/;
     A_smem_thread = A_smem + row * SMEM_STRIDE + col;
   }
   {
@@ -149,17 +150,17 @@ void matmul_v1a(
   constexpr int BLOCK_M = 128;
   constexpr int BLOCK_N = 128;
   constexpr int BLOCK_K = 64;
-  constexpr int SMEM_STRIDE = BLOCK_K;
+  constexpr int SMEM_STRIDE = BLOCK_K /*64*/;
 
   constexpr int NUM_WARP_M = 2;
   constexpr int NUM_WARP_N = 2;
 
-  const int grid_m = cdiv(M, BLOCK_M);
-  const int grid_n = cdiv(N, BLOCK_N);
-  const int grid_size = grid_m * grid_n;
+  const int grid_m /*32*/ = cdiv(M /*4096*/, BLOCK_M);
+  const int grid_n /*32*/= cdiv(N /*4096*/, BLOCK_N);
+  const int grid_size /*1024*/ = grid_m * grid_n;
 
-  const int tb_size = NUM_WARP_M * NUM_WARP_N * WARP_SIZE;
-  const int smem_size = (BLOCK_M + BLOCK_N) * BLOCK_K * sizeof(__hip_bfloat16);
+  const int tb_size /*256*/ = NUM_WARP_M /*2*/ * NUM_WARP_N /*2*/ * WARP_SIZE /*64*/;
+  const int smem_size /*32,768*/ = (BLOCK_M /*128*/ + BLOCK_N /*128*/) * BLOCK_K /*64*/ * sizeof(__hip_bfloat16) /*2 bytes*/;
 
   matmul_v1_kernel<BLOCK_M, BLOCK_N, BLOCK_K, SMEM_STRIDE, NUM_WARP_M, NUM_WARP_N>
     <<<grid_size, tb_size, smem_size>>>(

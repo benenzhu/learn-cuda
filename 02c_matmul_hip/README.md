@@ -9,6 +9,11 @@ Resources:
 - Matrix-core: https://github.com/LeiWang1999/leiblog.wang/blob/master/source/_posts/High-Performance-AMD-Matrix-Core.md
 - amd-lab-notes: https://github.com/amd/amd-lab-notes/blob/release/matrix-cores/src/mfma_fp32_16x16x16fp16.cpp
 
+
+`__builtin_amdgcn_mfma_f32_16x16x16f16` instructions.
+
+![1760964256545](image/README/1760964256545.png)
+
 M=N=K=4096, BF16
 
 ROCm 6.3
