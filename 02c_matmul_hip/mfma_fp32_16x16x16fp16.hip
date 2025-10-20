@@ -45,9 +45,9 @@ constexpr int LDA = K;
 constexpr int LDB = N;
 constexpr int LDD = N;
 
-constexpr int A_size = M * LDA;
-constexpr int B_size = K * LDB;
-constexpr int D_size = M * LDD;
+constexpr int A_size/*256*/ = M/*16*/ * LDA/*16*/;
+constexpr int B_size/*256*/ = K/*16*/ * LDB/*16*/;
+constexpr int D_size/*256*/ = M/*16*/ * LDD/*16*/;
 
 
 __global__ void sgemm_16x16x16(const float16_t* A, const float16_t* B, float* D)
@@ -91,7 +91,7 @@ __global__ void sgemm_16x16x16(const float16_t* A, const float16_t* B, float* D)
   float16x4 a;
   float16x4 b;
   for(int i = 0; i < 4; ++i){
-    const int a_idx =  threadIdx.x * LDA      // consecutive threads cover 16 consecutive rows
+    const int a_idx =  threadIdx.x * LDA/*16*/      // consecutive threads cover 16 consecutive rows
                      + i                      // consecutive registers take consecutive columns
                      + threadIdx.y * 4;       // groups of 16 lanes skip 4 columns
     a[i] = A[a_idx];
@@ -120,7 +120,7 @@ __global__ void sgemm_16x16x16(const float16_t* A, const float16_t* B, float* D)
   */
   for(int i = 0; i < 4; ++i){
     const int d_idx =  threadIdx.x            // consecutive threads cover 16 consecutive columns
-                     + i * LDD                // consecutive registers take consecutive rows of 16 floats
+                     + i * LDD /*16*/                // consecutive registers take consecutive rows of 16 floats
                      + threadIdx.y * 4 * LDD; // groups of 16 lanes skip 4 rows
 
     D[d_idx] = d[i];
@@ -129,12 +129,6 @@ __global__ void sgemm_16x16x16(const float16_t* A, const float16_t* B, float* D)
 
 
 int main(){
-  if (!gpuArchCheck("gfx90a") && !gpuArchCheck("gfx908")) {
-    std::cout << "mfma_f32_16x16x16f16 instruction only available on gfx908 or later."
-              << std::endl;
-    exit(-1);
-  }
-
   std::mt19937 gen(0);
   std::uniform_real_distribution<float> dist(-1, 1);
 
@@ -155,11 +149,11 @@ int main(){
   // Make and populate device buffers
   float16_t *A_d, *B_d;
   float *D_d;
-  HIP_CHECK(hipMalloc(&A_d, A_size * sizeof(float16_t)));
-  HIP_CHECK(hipMalloc(&B_d, B_size * sizeof(float16_t)));
-  HIP_CHECK(hipMalloc(&D_d, D_size * sizeof(float)));
-  HIP_CHECK(hipMemcpy(A_d, A_h.data(), A_size * sizeof(float16_t), hipMemcpyHostToDevice));
-  HIP_CHECK(hipMemcpy(B_d, B_h.data(), B_size * sizeof(float16_t), hipMemcpyHostToDevice));
+  HIP_CHECK(hipMalloc(&A_d, A_size/*256*/ * sizeof(float16_t)));
+  HIP_CHECK(hipMalloc(&B_d, B_size/*256*/ * sizeof(float16_t)));
+  HIP_CHECK(hipMalloc(&D_d, D_size/*256*/ * sizeof(float)));
+  HIP_CHECK(hipMemcpy(A_d, A_h.data(), A_size/*256*/ * sizeof(float16_t), hipMemcpyHostToDevice));
+  HIP_CHECK(hipMemcpy(B_d, B_h.data(), B_size/*256*/ * sizeof(float16_t), hipMemcpyHostToDevice));
 
   // Launch GEMM kernel
   sgemm_16x16x16<<<1, dim3(16, 4)>>>(A_d, B_d, D_d);
@@ -167,7 +161,7 @@ int main(){
 
   // Copy result back to host
   std::vector<float> D_h(D_size);
-  HIP_CHECK(hipMemcpy(D_h.data(), D_d, D_size * sizeof(float), hipMemcpyDeviceToHost));
+  HIP_CHECK(hipMemcpy(D_h.data(), D_d, D_size/*256*/ * sizeof(float), hipMemcpyDeviceToHost));
 
   std::cout << "Sum of squared differences of host/device result matrices: "
             << compute_l2_error(Dref_h, D_h, M, N, LDD, LDD)
