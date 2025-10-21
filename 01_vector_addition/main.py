@@ -57,11 +57,11 @@ def bench():
         
 
 
-def get_async_cp_kernel():
+def get_kernel(kernel_name):
     tic = time.time()
     kernel = _compile_kernel(
         open("kernel.cu", "r").read(),
-        kernel_name="async_cp_kernel",
+        kernel_name=kernel_name,
     )
     toc = time.time()
     print("compile used time: ", toc - tic)
@@ -69,15 +69,26 @@ def get_async_cp_kernel():
 
 
 def test_async_cp_kernel():
-    async_cp_kernel = get_async_cp_kernel()
+    async_cp_kernel = get_kernel("async_cp_kernel")
     M = 16 * 16
     a = torch.arange(M, device="cuda").half()
     async_cp_kernel((1,1,1), (32,1,1), (a,))
     torch.cuda.synchronize()
     time.sleep(0.5)
+ 
+# test_async_cp_kernel()
 
+def test_ld_matrix_kernel():
+    ld_matrix_kernel = get_kernel("ld_matrix_kernel")
+    a = torch.zeros(16, 32, device="cuda").half()
+    ld_matrix_kernel((1,1,1), (32,1,1), (a,))
+    torch.cuda.synchronize()
+    time.sleep(0.5)
     
-test_async_cp_kernel()
+test_ld_matrix_kernel()
+
+
+
 def get_mma_kernel():
     # with open("kernel.cu", "r") as f:
     #     KERNEL_SOURCE = f.read()
