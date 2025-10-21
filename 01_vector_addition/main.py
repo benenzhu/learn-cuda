@@ -57,10 +57,10 @@ def bench():
         
 
 
-def get_kernel(kernel_name):
+def get_kernel(kernel_name, file_name="kernel.cu"):
     tic = time.time()
     kernel = _compile_kernel(
-        open("kernel.cu", "r").read(),
+        open(file_name, "r").read(),
         kernel_name=kernel_name,
     )
     toc = time.time()
@@ -85,9 +85,19 @@ def test_ld_matrix_kernel():
     torch.cuda.synchronize()
     time.sleep(0.5)
     
-test_ld_matrix_kernel()
+# test_ld_matrix_kernel()
 
+def test_mma_ptx_kernel():
+    mma_ptx_kernel = get_kernel("mma_ptx_kernel", file_name="02_mma_ptx.cu")
+    a = torch.arange(16 * 16, device="cuda").half() * 0.1
+    b = torch.arange(16 * 16, device="cuda").half() * 0.1
+    c = torch.zeros(16 * 16 * 16, device="cuda").half()
+    d = torch.matmul(a.reshape(16, 16), b.reshape(16, 16).T)
+    mma_ptx_kernel((1,1,1), (32,1,1), (c, a, b, d))
+    torch.cuda.synchronize()
+    time.sleep(0.5)
 
+test_mma_ptx_kernel()
 
 def get_mma_kernel():
     # with open("kernel.cu", "r") as f:
