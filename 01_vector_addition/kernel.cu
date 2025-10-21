@@ -1,18 +1,3 @@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // #include <stdint.h>
 // #include <stdio.h>
 #include <cuda_fp16.h>
@@ -34,13 +19,6 @@ __global__ __launch_bounds__(256) void add_kernel(const float *A, const float *B
         reinterpret_cast<float4*>(C)[idx] = c;
     }
 }
-
-
-
-
-
-
-
 
 
 // template<int elts>
