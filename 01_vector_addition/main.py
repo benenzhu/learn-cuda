@@ -1,11 +1,11 @@
 import torch
-from typing import Optional, Union, Any
+from typing import Optional, Union, Any, Dict
 import ctypes
 import sys
 from rtc import _compile_kernel
-# import importlib
-# import rtc
-# importlib.reload(rtc)
+import importlib
+import rtc
+importlib.reload(rtc)
 from triton.testing import do_bench
 from contextlib import nullcontext
 
@@ -21,6 +21,59 @@ kernel = _compile_kernel(
 toc = time.time()
 
 print("compile used time: ", toc - tic)
+from rtc import _get_cuda_runtime_library, _check_cuda
+cbd=_get_cuda_runtime_library()
+
+tmap_type_map: Dict[Any, str] = {
+    torch.int8: cbd.CUtensorMapDataType.CU_TENSOR_MAP_DATA_TYPE_UINT8,
+    torch.int16: cbd.CUtensorMapDataType.CU_TENSOR_MAP_DATA_TYPE_UINT16,
+    torch.int32: cbd.CUtensorMapDataType.CU_TENSOR_MAP_DATA_TYPE_INT32,
+    torch.int64: cbd.CUtensorMapDataType.CU_TENSOR_MAP_DATA_TYPE_INT64,
+    torch.uint8: cbd.CUtensorMapDataType.CU_TENSOR_MAP_DATA_TYPE_UINT8,
+    torch.uint16: cbd.CUtensorMapDataType.CU_TENSOR_MAP_DATA_TYPE_UINT16,
+    torch.uint32: cbd.CUtensorMapDataType.CU_TENSOR_MAP_DATA_TYPE_UINT32,
+    torch.uint64: cbd.CUtensorMapDataType.CU_TENSOR_MAP_DATA_TYPE_UINT64,
+    torch.float32: cbd.CUtensorMapDataType.CU_TENSOR_MAP_DATA_TYPE_FLOAT32,
+    torch.float16: cbd.CUtensorMapDataType.CU_TENSOR_MAP_DATA_TYPE_FLOAT16,
+    torch.bfloat16: cbd.CUtensorMapDataType.CU_TENSOR_MAP_DATA_TYPE_BFLOAT16,
+    torch.float8_e4m3fn: cbd.CUtensorMapDataType.CU_TENSOR_MAP_DATA_TYPE_UINT8,
+    torch.float8_e4m3fnuz: cbd.CUtensorMapDataType.CU_TENSOR_MAP_DATA_TYPE_UINT8,
+    torch.float8_e5m2: cbd.CUtensorMapDataType.CU_TENSOR_MAP_DATA_TYPE_UINT8,
+    torch.float8_e5m2fnuz: cbd.CUtensorMapDataType.CU_TENSOR_MAP_DATA_TYPE_UINT8,
+}
+
+swizzle_type_map = {
+    0: cbd.CUtensorMapSwizzle.CU_TENSOR_MAP_SWIZZLE_NONE,
+    16: cbd.CUtensorMapSwizzle.CU_TENSOR_MAP_SWIZZLE_NONE,
+    32: cbd.CUtensorMapSwizzle.CU_TENSOR_MAP_SWIZZLE_32B,
+    64: cbd.CUtensorMapSwizzle.CU_TENSOR_MAP_SWIZZLE_64B,
+    128: cbd.CUtensorMapSwizzle.CU_TENSOR_MAP_SWIZZLE_128B,
+}
+
+t = torch.ones(128, 128, device="cuda").half()
+
+gmem_dims = (cbd.cuuint64_t(gmem_inner_dim), cbd.cuuint64_t(gmem_outer_dim))
+gmem_strides = (cbd.cuuint64_t(gmem_outer_stride * t.element_size()),)
+smem_dims = (cbd.cuuint32_t(smem_inner_dim), cbd.cuuint32_t(smem_outer_dim))
+
+tensor_dtype = tmap_type_map[t.dtype]
+_check_cuda(
+    cbd.cuTensorMapEncodeTiled(
+            tensor_dtype,
+            num_dims,
+            t.data_ptr(),
+            gmem_dims,
+            gmem_strides,
+            smem_dims,
+            (cbd.cuuint32_t(1),) * num_dims,
+            cbd.CUtensorMapInterleave.CU_TENSOR_MAP_INTERLEAVE_NONE,
+            swizzle_type,
+            cbd.CUtensorMapL2promotion.CU_TENSOR_MAP_L2_PROMOTION_L2_256B,
+            cbd.CUtensorMapFloatOOBfill.CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE,
+        )
+)
+
+1/0
 
 def div_up(x):
     return (x + 255) // 256
@@ -66,6 +119,7 @@ def get_kernel(kernel_name, file_name="01_sm80_ptx.cu"):
         open(file_name, "r").read(),
         kernel_name=kernel_name,
         nvcc_options=["-std=c++17", "-D__CUDA_NO_HALF_OPERATORS__", "-D__CUDA_NO_HALF_CONVERSIONS__", "-D__CUDA_NO_BFLOAT16_CONVERSIONS__", "-D__CUDA_NO_HALF2_OPERATORS__"],
+        save_ptx=True,
     )
     toc = time.time()
     print("compile used time: ", toc - tic)

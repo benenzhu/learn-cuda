@@ -365,15 +365,15 @@ def _nvrtc_compile(
     # Enable automatic precompiled headers (CUDA 12.8+)
     # if nvcc_options is None:
     #     nvcc_options = []
-    # auto_pch = True
+    auto_pch = True
     if auto_pch:
         assert str(torch.version.cuda) >= "12.8", "PCH requires CUDA 12.8+"
         if nvcc_options is None:
             nvcc_options = []
         nvcc_options.append("--pch")
-    # nvcc_options.append("-lineinfo")
-    # nvcc_options.append("--use_fast_math")
-    # print(__file__, "use-fast-math here")
+    nvcc_options.append("-lineinfo")
+    nvcc_options.append("--use_fast_math")
+    print(__file__, "use-fast-math here")
 
     # Add custom NVCC options
     if nvcc_options:
@@ -445,6 +445,7 @@ def _compile_kernel(
     compute_capability: Optional[str] = None,
     cuda_include_dirs: Optional[list] = None,
     nvcc_options: Optional[list] = None,
+    save_ptx: bool = False,
 ):
     """
     Compiles a CUDA kernel using NVRTC and returns a callable function.
@@ -492,6 +493,9 @@ def _compile_kernel(
     )
 
     # Load the module and get the kernel
+    if save_ptx:
+        with open(f"{kernel_name}.ptx", "wb") as f:
+            f.write(ptx)
     result = _cuda_load_module(ptx, [mangled_name])
 
     if isinstance(result, dict):
