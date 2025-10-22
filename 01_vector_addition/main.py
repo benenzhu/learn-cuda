@@ -3,6 +3,9 @@ from typing import Optional, Union, Any
 import ctypes
 import sys
 from rtc import _compile_kernel
+# import importlib
+# import rtc
+# importlib.reload(rtc)
 from triton.testing import do_bench
 from contextlib import nullcontext
 

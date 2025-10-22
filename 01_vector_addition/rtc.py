@@ -363,11 +363,17 @@ def _nvrtc_compile(
             options.append(f"-I{directory}".encode())
 
     # Enable automatic precompiled headers (CUDA 12.8+)
+    # if nvcc_options is None:
+    #     nvcc_options = []
+    # auto_pch = True
     if auto_pch:
         assert str(torch.version.cuda) >= "12.8", "PCH requires CUDA 12.8+"
         if nvcc_options is None:
             nvcc_options = []
         nvcc_options.append("--pch")
+    # nvcc_options.append("-lineinfo")
+    # nvcc_options.append("--use_fast_math")
+    # print(__file__, "use-fast-math here")
 
     # Add custom NVCC options
     if nvcc_options:
