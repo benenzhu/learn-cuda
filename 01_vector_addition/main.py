@@ -8,7 +8,7 @@ from contextlib import nullcontext
 
 import time
 print(torch.__version__)
-with open("kernel.cu", "r") as f:
+with open("01_sm80_ptx.cu", "r") as f:
     KERNEL_SOURCE = f.read()
 tic = time.time()
 kernel = _compile_kernel(
@@ -57,7 +57,7 @@ def bench():
         
 
 
-def get_kernel(kernel_name, file_name="kernel.cu"):
+def get_kernel(kernel_name, file_name="01_sm80_ptx.cu"):
     tic = time.time()
     kernel = _compile_kernel(
         open(file_name, "r").read(),
@@ -114,7 +114,7 @@ def test_tma_1d_kernel():
 test_tma_1d_kernel()
 
 def get_mma_kernel():
-    # with open("kernel.cu", "r") as f:
+    # with open("01_sm80_ptx.cu", "r") as f:
     #     KERNEL_SOURCE = f.read()
     tic = time.time()
     kernel = _compile_kernel(
