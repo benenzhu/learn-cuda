@@ -22,7 +22,7 @@ toc = time.time()
 
 print("compile used time: ", toc - tic)
 from rtc import _get_cuda_runtime_library, _check_cuda
-cbd=_get_cuda_runtime_library()
+import cuda.bindings.driver as cbd
 
 tmap_type_map: Dict[Any, str] = {
     torch.int8: cbd.CUtensorMapDataType.CU_TENSOR_MAP_DATA_TYPE_UINT8,
@@ -50,28 +50,29 @@ swizzle_type_map = {
     128: cbd.CUtensorMapSwizzle.CU_TENSOR_MAP_SWIZZLE_128B,
 }
 
-t = torch.ones(128, 128, device="cuda").half()
+WIDTH, HEIGHT=32, 32
+t = torch.ones(HEIGHT, WIDTH, device="cuda").half()
 
-gmem_dims = (cbd.cuuint64_t(gmem_inner_dim), cbd.cuuint64_t(gmem_outer_dim))
-gmem_strides = (cbd.cuuint64_t(gmem_outer_stride * t.element_size()),)
-smem_dims = (cbd.cuuint32_t(smem_inner_dim), cbd.cuuint32_t(smem_outer_dim))
+gmem_dims = (cbd.cuuint64_t(WIDTH), cbd.cuuint64_t(HEIGHT))
+gmem_strides = (cbd.cuuint64_t(WIDTH * t.element_size()),)
+smem_dims = (cbd.cuuint32_t(WIDTH), cbd.cuuint32_t(HEIGHT))
 
 tensor_dtype = tmap_type_map[t.dtype]
-_check_cuda(
-    cbd.cuTensorMapEncodeTiled(
-            tensor_dtype,
-            num_dims,
-            t.data_ptr(),
-            gmem_dims,
-            gmem_strides,
-            smem_dims,
-            (cbd.cuuint32_t(1),) * num_dims,
-            cbd.CUtensorMapInterleave.CU_TENSOR_MAP_INTERLEAVE_NONE,
-            swizzle_type,
-            cbd.CUtensorMapL2promotion.CU_TENSOR_MAP_L2_PROMOTION_L2_256B,
-            cbd.CUtensorMapFloatOOBfill.CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE,
-        )
+ret = cbd.cuTensorMapEncodeTiled(
+    tensor_dtype,
+    2, # num dims.
+    t.data_ptr(),
+    gmem_dims,
+    gmem_strides,
+    smem_dims,
+    (cbd.cuuint32_t(1),) * 2,
+    cbd.CUtensorMapInterleave.CU_TENSOR_MAP_INTERLEAVE_NONE,
+    swizzle_type_map[0],
+    # cbd.CUtensorMapL2promotion.CU_TENSOR_MAP_L2_PROMOTION_L2_256B,
+    cbd.CUtensorMapL2promotion.CU_TENSOR_MAP_L2_PROMOTION_NONE,
+    cbd.CUtensorMapFloatOOBfill.CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE,
 )
+print(ret)
 
 1/0
 
@@ -169,6 +170,20 @@ def test_tma_1d_kernel():
     time.sleep(0.5)
 
 test_tma_1d_kernel()
+
+
+def test_tma_2d_kernel():
+    tma_2d_kernel = get_kernel("tma_2d_kernel", file_name="02_mma_ptx.cu")
+    grid_size = (2, 1, 1)
+    block_size = (4 * 32, 1, 1)
+    smems_size = WIDTH * HEIGHT * 2
+    input = torch.arange(WIDTH * HEIGHT, device="cuda").half() * 0.1
+
+
+    tensor_map = 
+    tma_2d_kernel(grid_size, block_size, tensor_map, shared_mem=smems_size)
+
+
 
 def get_mma_kernel():
     # with open("01_sm80_ptx.cu", "r") as f:
