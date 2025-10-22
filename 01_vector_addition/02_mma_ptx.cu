@@ -67,6 +67,7 @@ __global__ void mma_ptx_kernel(half *c_ptr, half *a_ptr, half *b_ptr, half *d_pt
 
         printf("\nsmem_b:\n");
         print_mem(smem_b);
+
     }
 
     // ldmatrix
