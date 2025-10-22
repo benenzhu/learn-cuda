@@ -62,6 +62,7 @@ def get_kernel(kernel_name, file_name="kernel.cu"):
     kernel = _compile_kernel(
         open(file_name, "r").read(),
         kernel_name=kernel_name,
+        nvcc_options=["-std=c++17", "-D__CUDA_NO_HALF_OPERATORS__", "-D__CUDA_NO_HALF_CONVERSIONS__", "-D__CUDA_NO_BFLOAT16_CONVERSIONS__", "-D__CUDA_NO_HALF2_OPERATORS__"],
     )
     toc = time.time()
     print("compile used time: ", toc - tic)
@@ -97,7 +98,20 @@ def test_mma_ptx_kernel():
     torch.cuda.synchronize()
     time.sleep(0.5)
 
-test_mma_ptx_kernel()
+# test_mma_ptx_kernel()
+
+def test_tma_1d_kernel():
+    tma_1d_kernel = get_kernel("tma_1d_kernel", file_name="02_mma_ptx.cu")
+    warps_per_block = 4 
+    threads_per_warps = 32
+    elts_per_threads = 8
+    elts = warps_per_block * threads_per_warps * elts_per_threads
+    a = torch.arange(elts, device="cuda").half() * 0.1
+    tma_1d_kernel((1,1,1), (warps_per_block * threads_per_warps, 1, 1), (a, a.numel()), shared_mem=2 * elts)
+    torch.cuda.synchronize()
+    time.sleep(0.5)
+
+test_tma_1d_kernel()
 
 def get_mma_kernel():
     # with open("kernel.cu", "r") as f:
