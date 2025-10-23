@@ -11,16 +11,16 @@ from contextlib import nullcontext
 
 import time
 print(torch.__version__)
-with open("01_sm80_ptx.cu", "r") as f:
-    KERNEL_SOURCE = f.read()
-tic = time.time()
-kernel = _compile_kernel(
-    KERNEL_SOURCE,
-    kernel_name="add_kernel",
-)
-toc = time.time()
+# with open("01_sm80_ptx.cu", "r") as f:
+#     KERNEL_SOURCE = f.read()
+# tic = time.time()
+# kernel = _compile_kernel(
+#     KERNEL_SOURCE,
+#     kernel_name="add_kernel",
+# )
+# toc = time.time()
 
-print("compile used time: ", toc - tic)
+# print("compile used time: ", toc - tic)
 from rtc import _get_cuda_runtime_library, _check_cuda
 import cuda.bindings.driver as cbd
 
@@ -51,30 +51,41 @@ swizzle_type_map = {
 }
 
 WIDTH, HEIGHT=32, 32
-t = torch.ones(HEIGHT, WIDTH, device="cuda").half()
+# t = torch.ones(HEIGHT, WIDTH, device="cuda").half()
 
-gmem_dims = (cbd.cuuint64_t(WIDTH), cbd.cuuint64_t(HEIGHT))
-gmem_strides = (cbd.cuuint64_t(WIDTH * t.element_size()),)
-smem_dims = (cbd.cuuint32_t(WIDTH), cbd.cuuint32_t(HEIGHT))
+# gmem_dims = (cbd.cuuint64_t(WIDTH), cbd.cuuint64_t(HEIGHT))
+# gmem_strides = (cbd.cuuint64_t(WIDTH * t.element_size()),)
+# smem_dims = (cbd.cuuint32_t(WIDTH), cbd.cuuint32_t(HEIGHT))
 
-tensor_dtype = tmap_type_map[t.dtype]
-ret = cbd.cuTensorMapEncodeTiled(
-    tensor_dtype,
-    2, # num dims.
-    t.data_ptr(),
-    gmem_dims,
-    gmem_strides,
-    smem_dims,
-    (cbd.cuuint32_t(1),) * 2,
-    cbd.CUtensorMapInterleave.CU_TENSOR_MAP_INTERLEAVE_NONE,
-    swizzle_type_map[0],
-    # cbd.CUtensorMapL2promotion.CU_TENSOR_MAP_L2_PROMOTION_L2_256B,
-    cbd.CUtensorMapL2promotion.CU_TENSOR_MAP_L2_PROMOTION_NONE,
-    cbd.CUtensorMapFloatOOBfill.CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE,
-)
-print(ret)
+# tensor_dtype = tmap_type_map[t.dtype]
+# ret = cbd.cuTensorMapEncodeTiled(
+#     tensor_dtype,
+#     2, # num dims.
+#     t.data_ptr(),
+#     gmem_dims,
+#     gmem_strides,
+#     smem_dims,
+#     (cbd.cuuint32_t(1),) * 2,
+#     cbd.CUtensorMapInterleave.CU_TENSOR_MAP_INTERLEAVE_NONE,
+#     swizzle_type_map[0],
+#     # cbd.CUtensorMapL2promotion.CU_TENSOR_MAP_L2_PROMOTION_L2_256B,
+#     cbd.CUtensorMapL2promotion.CU_TENSOR_MAP_L2_PROMOTION_NONE,
+#     cbd.CUtensorMapFloatOOBfill.CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE,
+# )
+# print(ret)
+def get_mma_kernel():
+    # with open("01_sm80_ptx.cu", "r") as f:
+    #     KERNEL_SOURCE = f.read()
+    tic = time.time()
+    kernel = _compile_kernel(
+        open("kernel_mma.cu", "r").read(),
+        kernel_name="mma_kernel",
+    )
+    toc = time.time()
+    print("compile used time: ", toc - tic)
+    return kernel
 
-1/0
+# 1/0
 
 def div_up(x):
     return (x + 255) // 256
@@ -169,32 +180,42 @@ def test_tma_1d_kernel():
     torch.cuda.synchronize()
     time.sleep(0.5)
 
-test_tma_1d_kernel()
+# test_tma_1d_kernel()
 
 
 def test_tma_2d_kernel():
     tma_2d_kernel = get_kernel("tma_2d_kernel", file_name="02_mma_ptx.cu")
     grid_size = (2, 1, 1)
     block_size = (4 * 32, 1, 1)
-    smems_size = WIDTH * HEIGHT * 2
-    input = torch.arange(WIDTH * HEIGHT, device="cuda").half() * 0.1
+    WIDTH, HEIGHT=32, 32
+    W, H = 16, 16
+    input = torch.arange(WIDTH * HEIGHT, device="cuda").half()
+    gmem_dims = (cbd.cuuint64_t(WIDTH), cbd.cuuint64_t(HEIGHT))
+    gmem_strides = (cbd.cuuint64_t(WIDTH * input.element_size()),)
+    box_stride = (cbd.cuuint32_t(W), cbd.cuuint32_t(H))
 
+    tensor_dtype = tmap_type_map[input.dtype]
 
-    tensor_map = 
-    tma_2d_kernel(grid_size, block_size, tensor_map, shared_mem=smems_size)
-
-
-
-def get_mma_kernel():
-    # with open("01_sm80_ptx.cu", "r") as f:
-    #     KERNEL_SOURCE = f.read()
-    tic = time.time()
-    kernel = _compile_kernel(
-        open("kernel_mma.cu", "r").read(),
-        kernel_name="mma_kernel",
+    result, tensor_map = cbd.cuTensorMapEncodeTiled(
+        tensor_dtype,
+        2, # num dims.
+        input.data_ptr(),
+        gmem_dims,
+        gmem_strides,
+        box_stride,
+        (cbd.cuuint32_t(1),) * 2,
+        cbd.CUtensorMapInterleave.CU_TENSOR_MAP_INTERLEAVE_NONE,
+        swizzle_type_map[0],
+        # cbd.CUtensorMapL2promotion.CU_TENSOR_MAP_L2_PROMOTION_L2_256B,
+        cbd.CUtensorMapL2promotion.CU_TENSOR_MAP_L2_PROMOTION_NONE,
+        cbd.CUtensorMapFloatOOBfill.CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE, 
     )
-    toc = time.time()
-    print("compile used time: ", toc - tic)
-    return kernel
+    _check_cuda(result)
+    tma_2d_kernel(grid_size, block_size, args=[tensor_map])
+test_tma_2d_kernel()
+
+
+
+
 
 

@@ -2,6 +2,7 @@ import torch
 from typing import Optional, Union, Any
 import ctypes
 import sys
+import time
 
 def _get_cuda_runtime_library() -> ctypes.CDLL:
     if sys.platform == "win32":
@@ -42,6 +43,7 @@ class _CudaKernel:
         args: Optional[list] = None,
         shared_mem: int = 0,
         stream: Optional[Any] = None,
+        sync: bool = True,
     ) -> None:
         """
         Call the compiled CUDA kernel
@@ -55,6 +57,7 @@ class _CudaKernel:
             stream (torch.cuda.Stream): CUDA stream to use. If None, uses current stream.
         """
         import torch
+        import cuda.bindings.driver as cbd
 
         libcuda = _get_gpu_runtime_library()
 
@@ -62,8 +65,9 @@ class _CudaKernel:
             args = []
 
         # Process arguments and convert tensors to pointers
-        processed_args: list[ctypes.c_void_p] = []
-        c_args = []
+        arg_values = []
+        arg_types = []
+        # Keep references to prevent garbage collection
 
         for arg in args:
             if isinstance(arg, torch.Tensor):
@@ -72,26 +76,23 @@ class _CudaKernel:
                         "All tensor arguments must be CUDA tensors or pinned CPU tensors"
                     )
                 # Get pointer to tensor data
-                ptr = ctypes.c_void_p(arg.data_ptr())
-                processed_args.append(ptr)
-                c_args.append(ctypes.byref(ptr))
+                arg_values.append(arg.data_ptr())
+                arg_types.append(ctypes.c_void_p)
             elif isinstance(arg, int):
                 # Convert integers to C int
-                c_int = ctypes.c_int(arg)
-                # Store the C int for reference keeping, not in processed_args
-                c_args.append(ctypes.byref(c_int))
+                arg_values.append(arg)
+                arg_types.append(ctypes.c_uint32)
             elif isinstance(arg, float):
                 # Python floats are doubles - use double by default
-                c_double = ctypes.c_double(arg)
-                # Store the C double for reference keeping, not in processed_args
-                c_args.append(ctypes.byref(c_double))
+                arg_values.append(arg)
+                arg_types.append(ctypes.c_double)
+            elif hasattr(arg, '__class__') and 'CUtensorMap' in arg.__class__.__name__:
+                # Handle CUDA TMA descriptor (CUtensorMap)
+                # For cuLaunchKernelEx, we pass the CUtensorMap directly and set type to None
+                arg_values.append(arg)
+                arg_types.append(None)
             else:
                 raise TypeError(f"Unsupported argument type: {type(arg)}")
-
-        # Convert to array of void pointers
-        c_args_array = (ctypes.c_void_p * len(c_args))()
-        for i, arg in enumerate(c_args):
-            c_args_array[i] = ctypes.cast(arg, ctypes.c_void_p)
 
         # Get the stream
         if stream is None:
@@ -116,21 +117,36 @@ class _CudaKernel:
                 "and before launching the kernel."
             )
 
-        _check_cuda(
-            libcuda.cuLaunchKernel(
-                self.func,
-                grid[0],
-                grid[1],
-                grid[2],
-                block[0],
-                block[1],
-                block[2],
-                shared_mem,
-                stream._as_parameter_,
-                c_args_array,
-                None,
-            )
-        )
+        # Use cuLaunchKernelEx for better support of TMA descriptors
+        config = cbd.CUlaunchConfig()
+        config.numAttrs = 0
+        config.attrs = []
+        config.gridDimX = grid[0]
+        config.gridDimY = grid[1]
+        config.gridDimZ = grid[2]
+        config.blockDimX = block[0]
+        config.blockDimY = block[1]
+        config.blockDimZ = block[2]
+        config.sharedMemBytes = shared_mem
+        
+        # Get the stream handle (integer) from PyTorch stream
+        # PyTorch stream's cuda_stream property returns the CUstream handle
+        stream_handle = stream.cuda_stream if hasattr(stream, 'cuda_stream') else stream._as_parameter_
+        config.hStream = cbd.CUstream(stream_handle)
+
+        # Launch kernel using cuLaunchKernelEx
+        # self.func is a ctypes.c_void_p, get its integer value
+        kernel_func = cbd.CUfunction(self.func.value) if hasattr(self.func, 'value') else cbd.CUfunction(self.func)
+        result = cbd.cuLaunchKernelEx(config, kernel_func, (tuple(arg_values), tuple(arg_types)), 0)
+        
+        if isinstance(result, tuple):
+            _check_cuda(result[0].value)
+        else:
+            _check_cuda(result)
+        if sync:
+            torch.cuda.synchronize()
+            print("Synchronized!")
+            time.sleep(0.5)
 
     def set_shared_memory_config(self, shared_mem_bytes: int) -> None:
         if shared_mem_bytes < 48 * 1024:
@@ -373,6 +389,12 @@ def _nvrtc_compile(
         nvcc_options.append("--pch")
     nvcc_options.append("-lineinfo")
     nvcc_options.append("--use_fast_math")
+    nvcc_options.append("-I/usr/local/cuda/include")
+    # nvcc_options.append("-I/usr/include/c++/13/")
+    # nvcc_options.append("-I/usr/include/x86_64-linux-gnu/c++/13/")
+    # nvcc_options.append("-I/usr/include/")
+    # nvcc_options.append("-I/usr/include/x86_64-linux-gnu/")
+    # nvcc_options.append("-std=c++17")
     print(__file__, "use-fast-math here")
 
     # Add custom NVCC options
